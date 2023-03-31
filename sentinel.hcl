@@ -1,5 +1,3 @@
-
-
 # This policy uses the Sentinel tfplan/v2 import to require that
 # all EC2 instances have instance types from an allowed list
 
