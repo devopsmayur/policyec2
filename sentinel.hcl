@@ -1,38 +1,28 @@
-import "tfplan"
 
-# Define allowed instance types
-allowed_instance_types = {
-  "t2.small": true,
-  "t2.medium": true,
-  "m5.large": true,
-}
 
-# Define allowed instance AMI
-allowed_instance_ami = {
-  "ami-0c94855ba95c71c99": true,
-  "ami-09f0c1e1d35785a38": true,
-}
+# This policy uses the Sentinel tfplan/v2 import to require that
+# all EC2 instances have instance types from an allowed list
 
-# Check if any EC2 instance has internet access
-deny[msg] {
-  instance := tfplan.resource_changes.aws_instance
-  instance.type == "aws_instance"
-  instance.change.after.security_groups.*.cidr_blocks contains "0.0.0.0/0"
-  msg = "EC2 instance should not have internet access"
-}
+# Import common-functions/tfplan-functions/tfplan-functions.sentinel
+# with alias "plan"
+import "tfplan-functions" as plan
 
-# Check if the instance type is allowed
-deny[msg] {
-  instance := tfplan.resource_changes.aws_instance
-  instance.type == "aws_instance"
-  instance.change.after.instance_type not in allowed_instance_types
-  msg = sprintf("EC2 instance type '%v' is not allowed", [instance.change.after.instance_type])
-}
+# Allowed EC2 Instance Types
+# Include "null" to allow missing or computed values
+allowed_types = ["t2.small", "t2.medium", "t2.large"]
 
-# Check if the instance AMI is allowed
-deny[msg] {
-  instance := tfplan.resource_changes.aws_instance
-  instance.type == "aws_instance"
-  instance.change.after.ami not in allowed_instance_ami
-  msg = sprintf("EC2 instance AMI '%v' is not allowed", [instance.change.after.ami])
+# Get all EC2 instances
+allEC2Instances = plan.find_resources("aws_instance")
+
+# Filter to EC2 instances with violations
+# Warnings will be printed for all violations since the last parameter is true
+violatingEC2Instances = plan.filter_attribute_not_in_list(allEC2Instances,
+                        "instance_type", allowed_types, true)
+
+# Count violations
+violations = length(violatingEC2Instances["messages"])
+
+# Main rule
+main = rule {
+  violations is 0
 }
